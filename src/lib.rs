@@ -31,7 +31,7 @@ impl<'b, T: ?Sized + 'b> RefExtended<&'_ mut T> {
     /// Returns mutable reference with lifetime of value
     /// 
     /// This method is unsafe because
-    /// * Moving inner referenced value can invalidate returned reference
+    /// * It can create mutable reference while having immutable references
     /// * It can create multiple mutable reference
     #[inline(always)]
     pub unsafe fn static_mut(&mut self) -> &'b mut T {
