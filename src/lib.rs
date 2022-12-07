@@ -80,7 +80,7 @@ macro_rules! ref_extended {
 /// ```
 #[macro_export]
 macro_rules! pin_ref_extended {
-    (&$name: ident, $expr: expr) => {
+    ($name: ident, $expr: expr) => {
         let $name = $expr;
         ::ref_extended::ref_extended!(&$name);
     };
