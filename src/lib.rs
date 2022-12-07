@@ -20,7 +20,7 @@ impl<'b, T: ?Sized + 'b> RefExtended<&'_ T> {
     /// Returns reference with lifetime of value
     /// 
     /// This method is unsafe because
-    /// * Moving [`RefExtended`] struct can invalidate returned reference
+    /// * It can create immutable reference while having mutable reference
     #[inline(always)]
     pub unsafe fn static_ref(&self) -> &'b T {
         mem::transmute::<&T, &'b T>(self.0)
@@ -31,7 +31,7 @@ impl<'b, T: ?Sized + 'b> RefExtended<&'_ mut T> {
     /// Returns mutable reference with lifetime of value
     /// 
     /// This method is unsafe because
-    /// * Moving [`RefExtended`] struct can invalidate returned reference
+    /// * Moving inner referenced value can invalidate returned reference
     /// * It can create multiple mutable reference
     #[inline(always)]
     pub unsafe fn static_mut(&mut self) -> &'b mut T {
