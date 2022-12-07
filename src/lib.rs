@@ -1,4 +1,4 @@
-#![doc = "../README.md"]
+#![doc = include_str!("../README.md")]
 
 use core::mem;
 use std::process;
