@@ -1,6 +1,13 @@
 # Ref Extended
 Extends lifetime of reference to same as lifetime of value by shortening entire program lifetime
 
+## Unsafe
+**IMPORTANT**
+
+This crate is currently unsafe when used with generator or async function. By abusing generator or async function with this crate it can result undefined behavior without unsafe code.
+
+Do not use this crate until this issue fixed.
+
 ## When it is useful?
 1. You are doing programming without heap allocation (such as embed programming), and don't want to use static.
 2. You run some diverging functions which exit process itself without returning.
