@@ -1,7 +1,7 @@
 #![doc = include_str!("../README.md")]
 
 use core::mem;
-use std::{process, hint::unreachable_unchecked};
+use std::{hint::unreachable_unchecked, process};
 
 /// Returns reference with lifetime of value
 ///
@@ -58,9 +58,13 @@ pub fn run_abort_guarded<F: FnOnce()>(func: F) -> ! {
 #[macro_export]
 macro_rules! ref_extended {
     (|$(& $($var: ident)+ ),*| $body: expr) => {
-        $(let ::ref_extended::extract_ref_name!($($var)*) = unsafe { ::ref_extended::extend_lifetime!($($var)*) };)*
+        ::ref_extended::run_abort_guarded(move || {
+            $(let ::ref_extended::extract_ref_name!($($var)*) = unsafe { ::ref_extended::extend_lifetime!($($var)*) };)*
 
-        ::ref_extended::run_abort_guarded(move || {$body})
+            {
+                $body
+            }
+        })
     };
 }
 
