@@ -1,93 +1,89 @@
 #![doc = include_str!("../README.md")]
 
 use core::mem;
-use std::process;
+use std::{process, hint::unreachable_unchecked};
 
-/// This struct extends reference of value as long as lifetime of value
-/// 
-/// Dropping this value will abort process to ensure the lifetime of reference
-#[derive(Debug)]
-#[repr(transparent)]
-pub struct RefExtended<T: ?Sized>(T);
-
-impl<T> RefExtended<T> {
-    pub const fn new(value: T) -> Self {
-        Self(value)
-    }
+/// Returns reference with lifetime of value
+///
+/// # Safety
+/// * You must not move original variable
+/// * You must not create immutable reference while having mutable reference
+/// * The reference must not outlive
+#[inline(always)]
+pub unsafe fn extend_ref<'a, T: 'a>(target: &T) -> &'a T {
+    mem::transmute::<&T, &'a T>(target)
 }
 
-impl<'b, T: ?Sized + 'b> RefExtended<&'_ T> {
-    /// Returns reference with lifetime of value
-    /// 
-    /// This method is unsafe because
-    /// * It can create immutable reference while having mutable reference
-    #[inline(always)]
-    pub unsafe fn static_ref(&self) -> &'b T {
-        mem::transmute::<&T, &'b T>(self.0)
-    }
+/// Returns mutable reference with lifetime of value
+///
+/// # Safety
+/// * You must not move original variable
+/// * You must not create mutable reference while having immutable references
+/// * You must not create multiple mutable reference
+/// * The reference must not outlive
+#[inline(always)]
+pub unsafe fn extend_mut<'a, T: 'a>(target: &mut T) -> &'a mut T {
+    mem::transmute::<&mut T, &'a mut T>(target)
 }
 
-impl<'b, T: ?Sized + 'b> RefExtended<&'_ mut T> {
-    /// Returns mutable reference with lifetime of value
-    /// 
-    /// This method is unsafe because
-    /// * It can create mutable reference while having immutable references
-    /// * It can create multiple mutable reference
-    #[inline(always)]
-    pub unsafe fn static_mut(&mut self) -> &'b mut T {
-        mem::transmute::<&mut T, &'b mut T>(self.0)
+#[doc(hidden)]
+#[inline(always)]
+pub fn run_abort_guarded<F: FnOnce()>(func: F) -> ! {
+    struct AbortGuard;
+
+    impl Drop for AbortGuard {
+        fn drop(&mut self) {
+            process::abort();
+        }
     }
+
+    {
+        let _guard = AbortGuard;
+
+        func();
+    }
+
+    // Safety: AbortGuard always abort process on drop and cannot be touched from outside
+    unsafe { unreachable_unchecked() }
 }
 
-impl<T: ?Sized> Drop for RefExtended<T> {
-    fn drop(&mut self) {
-        process::abort();
-    }
-}
-
-/// Safely extends lifetime of reference as long as lifetime of it's value
-/// 
+/// Safely extends lifetime of reference as long as lifetime of it's value.
+///
 /// ## Usage
 /// ```Rust
-/// let a = 0_u32;
-/// 
-/// ref_extended(&a); // Now a is &'static u32 because lifetime of a's value is 'static
+/// ref_extended(|&a| {}); // a is &'static u32 because lifetime of a's value is 'static
 ///
-/// let mut b = 0_u32;
-/// 
-/// ref_extended(&mut b); // Now b is &'static mut u32 because lifetime of b's value is 'static
+/// ref_extended(|&a, &mut b| {}); // a is &'static u32 and b is &'static mut u32 because lifetime of a and b' value is 'static
 /// ```
 #[macro_export]
 macro_rules! ref_extended {
-    (&$name: ident) => {
-        let $name = ::ref_extended::RefExtended::new(&$name);
-        let $name = unsafe { $name.static_ref() };
-    };
+    (|$(& $($var: ident)+ ),*| $body: expr) => {
+        $(let ::ref_extended::extract_ref_name!($($var)*) = unsafe { ::ref_extended::extend_lifetime!($($var)*) };)*
 
-    (&mut $name: ident) => {
-        let mut $name = ::ref_extended::RefExtended::new(&mut $name);
-        let $name = unsafe { $name.static_mut() };
+        ::ref_extended::run_abort_guarded(move || {$body})
     };
 }
 
-/// Pin value to stack and safely extends lifetime of reference as long as lifetime of it's value
-/// 
-/// ## Usage
-/// ```Rust
-/// pin_ref_extended(a, 0_u32); // Now a is &'static u32 with value 0 because lifetime of a's value is 'static
-///
-/// pin_ref_extended(mut b, 0_u32); // Now b is &'static mut u32 with value 0 because lifetime of b's value is 'static
-/// ```
+#[doc(hidden)]
 #[macro_export]
-macro_rules! pin_ref_extended {
-    ($name: ident, $expr: expr) => {
-        let $name = $expr;
-        ::ref_extended::ref_extended!(&$name);
+macro_rules! extract_ref_name {
+    ($name: ident) => {
+        $name
     };
-    
-    (mut $name: ident, $expr: expr) => {
-        let mut $name = $expr;
-        ::ref_extended::ref_extended!(&mut $name);
+
+    (mut $name: ident) => {
+        $name
     };
 }
 
+#[doc(hidden)]
+#[macro_export]
+macro_rules! extend_lifetime {
+    ($name: ident) => {
+        ::ref_extended::extend_ref(&$name)
+    };
+
+    (mut $name: ident) => {
+        ::ref_extended::extend_mut(&mut $name)
+    };
+}
